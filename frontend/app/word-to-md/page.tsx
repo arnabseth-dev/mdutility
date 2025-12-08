@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useState } from "react";
+import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -106,7 +107,16 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#071833] via-[#0b2a4b] to-[#061b35] text-gray-100 p-6 flex flex-col">
-      <div className="max-w-6xl mx-auto flex-1 flex flex-col">
+      <div className="w-full flex-1 flex flex-col">
+        {/* Back navigation to landing page */}
+        <div className="mb-4">
+          <Link href="/" className="inline-flex items-center text-sm text-gray-300 hover:text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+              <path strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7 7-7" />
+            </svg>
+            Back to Home
+          </Link>
+        </div>
         {/* Top: Upload / Drop area */}
         <section
           onDrop={onDrop}
@@ -169,7 +179,7 @@ export default function Page() {
               </p>
             </div>
           ) : markdown ? (
-            <div className="prose prose-invert max-w-none">
+            <div className="prose prose-invert max-w-none markdown-numbered">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw, rehypeHighlight]}
@@ -180,7 +190,7 @@ export default function Page() {
                     </h1>
                   ),
                   h2: ({ node, children, ...props }: any) => (
-                    <h2 className="text-3xl md:text-4xl font-semibold text-cyan-200 mt-5 mb-3 pl-3 border-l-4 border-cyan-600" {...props}>
+                    <h2 className="numbered-h2 text-3xl md:text-4xl font-semibold text-cyan-200 mt-5 mb-3 pl-3 border-l-4 border-cyan-600" {...props}>
                       {children}
                     </h2>
                   ),

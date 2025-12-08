@@ -56,3 +56,18 @@ body {
 /* performance helpers and safety */
 html, body { background-color: #061b35; }
 body { margin: 0; }
+
+/* Markdown numbered section styles */
+.markdown-numbered { counter-reset: section; }
+.markdown-numbered .numbered-h2 { counter-increment: section; position: relative; padding-left: 3rem; }
+.markdown-numbered .numbered-h2::before {
+  content: counter(section) ".";
+  position: absolute;
+  left: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-weight: 700;
+  color: rgba(148, 163, 184, 1); /* slate-400 */
+  font-size: 0.95em;
+}
+
