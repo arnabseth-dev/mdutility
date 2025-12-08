@@ -71,7 +71,17 @@ export default function Page() {
         throw new Error("Invalid server response (expected { markdown })");
       }
 
-      setMarkdown(data.markdown);
+      // Sanitize / normalize any non-standard HTML tags that may come from the converter
+      // e.g. <information> is not a valid custom element (must contain a hyphen),
+      // which causes React/DOM errors. Replace with <div class="information">.
+      const sanitizeHtmlTags = (md: string) => {
+        if (!md) return md;
+        return md
+          .replace(/<\s*information(\b[^>]*)?>/gi, '<div class="information">')
+          .replace(/<\s*\/\s*information\s*>/gi, '</div>');
+      };
+
+      setMarkdown(sanitizeHtmlTags(data.markdown));
     } catch (err: any) {
       setError(err?.message ?? "Conversion failed");
     } finally {
