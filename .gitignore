@@ -1,0 +1,107 @@
+####################################
+# SECRETS & PRIVATE KEYS
+####################################
+*.env
+*.env.*
+!*.env.example
+*.key
+*.pem
+*.crt
+*.p12
+*.keystore
+*.jks
+*.asc
+*.gpg
+*.token
+secret_*
+credentials.json
+
+####################################
+# NODE / JAVASCRIPT (React + Next.js)
+####################################
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Next.js build
+.next/
+out/
+
+# React build
+build/
+dist/
+
+# Webpack / Cache
+.cache/
+.temp/
+*.tsbuildinfo
+
+####################################
+# PYTHON / FASTAPI
+####################################
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.pkl
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+env/
+.venv/
+.pyenv/
+pip-wheel-metadata/
+
+# Python logs
+*.log
+logs/
+
+####################################
+# OS FILES
+####################################
+.DS_Store
+Thumbs.db
+
+####################################
+# IDE / EDITOR FILES
+####################################
+.vscode/
+.idea/
+*.swp
+*.swo
+
+####################################
+# SECURITY / SSH
+####################################
+id_rsa
+id_rsa.pub
+id_*
+ssh_key*
+
+####################################
+# DOCKER
+####################################
+/docker-data/
+*.pid
+*.pid.lock
+
+####################################
+# TEMP / MISC
+####################################
+tmp/
+temp/
+*.tmp
+*.bak
+*.old
+*.orig

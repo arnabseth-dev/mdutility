@@ -1,0 +1,20 @@
+# FastAPI + ASGI server
+fastapi>=0.95.0              # web framework
+uvicorn[standard]>=0.18.0    # ASGI server (use uvicorn to run the app)
+
+# Data validation / models
+pydantic>=2.0.0,<3           # Pydantic v2 (compatible with Python 3.14)
+
+# Optional / common helpers (no DB)
+python-multipart            # file uploads (forms)
+aiofiles                    # async file handling (useful for send_file, static files)
+httpx                       # async http client for calling other APIs (useful in tests)
+python-jose[cryptography]    # JWT handling (if you need tokens)
+passlib[bcrypt]             # password hashing helpers (if you need simple auth)
+
+# Dev / testing / linting (optional, helpful)
+pytest                      # tests
+httpx[cli]                  # for integration tests / quick HTTP checks
+black                       # code formatter
+flake8                      # linting
+mypy                        # static types (optional)
