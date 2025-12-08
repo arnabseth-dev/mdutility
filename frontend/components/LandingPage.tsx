@@ -49,7 +49,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="mt-4 text-lg text-gray-300 leading-relaxed max-w-12xl">
-            Two simple tools to streamline documentation workflows. Convert Word/PDF files to tidy Markdown, or take Markdown and export it back to fully formatted Word documents — all in a few clicks. The converters preserve headings, lists, tables and code blocks where possible.
+            Two simple tools to streamline documentation workflows. Convert Word/PDF files to tidy Markdown, or take Markdown and export it back to fully formatted Word documents - all in a few clicks. The converters preserve headings, lists, tables and code blocks where possible.
           </p>
         </header>
 
@@ -61,6 +61,7 @@ export default function LandingPage() {
             description="Upload or drag and drop your document to convert it into lightweight Markdown, making it easier for AI models to process while sharply reducing token usage and cost."
             icon={"/ms-word-svgrepo-com.svg"}
             accentClass="from-indigo-600 to-cyan-400"
+            ctaHref="/word-to-md"
           />
 
           <ConverterCard
@@ -68,6 +69,7 @@ export default function LandingPage() {
             description="Upload or drag and drop your Markdown to generate a structured Word document shaped by your theme file, giving you a clean, branded layout ready to use or share."
             icon={"/file-md-svgrepo-com.svg"}
             accentClass="from-amber-600 to-rose-500"
+            ctaHref="/"
           />
 
         </section>
