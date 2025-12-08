@@ -11,6 +11,10 @@ aiofiles                    # async file handling (useful for send_file, static 
 httpx                       # async http client for calling other APIs (useful in tests)
 python-jose[cryptography]    # JWT handling (if you need tokens)
 passlib[bcrypt]             # password hashing helpers (if you need simple auth)
+mammoth                    # Word to HTML conversion
+markdownify                # HTML to Markdown conversion
+pdfplumber                 # PDF text extraction
+python-dotenv              # .env file support
 
 # Dev / testing / linting (optional, helpful)
 pytest                      # tests

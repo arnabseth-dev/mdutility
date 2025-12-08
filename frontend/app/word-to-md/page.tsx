@@ -2,6 +2,9 @@
 
 import React, { useCallback, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
+import rehypeHighlight from "rehype-highlight";
 
 type ConvertResponse = { markdown: string };
 
@@ -11,8 +14,7 @@ type ConvertResponse = { markdown: string };
  * - Below: rendered Markdown preview
  *
  * Notes:
- * - Expects POST /api/convert/word-to-md which returns { markdown: string }.
- * - If you don't have a backend yet, the UI will show a placeholder and file name.
+ * - Expects POST http://localhost:8000/api/convert/word-to-md which returns { markdown: string }.
  */
 
 export default function Page() {
@@ -52,7 +54,7 @@ export default function Page() {
       const form = new FormData();
       form.append("file", f);
 
-      const resp = await fetch("/api/convert/word-to-md", {
+      const resp = await fetch("http://localhost:8000/api/convert/word-to-md", {
         method: "POST",
         body: form,
       });
@@ -103,10 +105,9 @@ export default function Page() {
   const openPicker = () => fileInputRef.current?.click();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#071833] via-[#0b2a4b] to-[#061b35] text-gray-100 p-6">
-      <div className="max-w-6xl mx-auto">
-
-        {/* Top: Upload / Drop area - full width, minimal height */}
+    <div className="min-h-screen bg-gradient-to-b from-[#071833] via-[#0b2a4b] to-[#061b35] text-gray-100 p-6 flex flex-col">
+      <div className="max-w-6xl mx-auto flex-1 flex flex-col">
+        {/* Top: Upload / Drop area */}
         <section
           onDrop={onDrop}
           onDragOver={onDragOver}
@@ -153,7 +154,7 @@ export default function Page() {
         </section>
 
         {/* Preview / result - full width below */}
-        <section className="mt-8 bg-white/5 border border-white/6 rounded-xl p-6 min-h-[280px]">
+        <section className="mt-8 bg-white/5 border border-white/6 rounded-xl p-6 min-h-[280px] overflow-auto flex-1">
           {loading ? (
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full border-4 border-t-indigo-500 border-gray-700 animate-spin" />
@@ -169,7 +170,75 @@ export default function Page() {
             </div>
           ) : markdown ? (
             <div className="prose prose-invert max-w-none">
-              <ReactMarkdown>{markdown}</ReactMarkdown>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeRaw, rehypeHighlight]}
+                components={{
+                  h1: ({ node, children, ...props }: any) => (
+                    <h1 className="text-5xl md:text-6xl font-extrabold leading-tight tracking-tight mt-6 mb-2 pb-3 border-b border-gray-700" {...props}>
+                      {children}
+                    </h1>
+                  ),
+                  h2: ({ node, children, ...props }: any) => (
+                    <h2 className="text-3xl md:text-4xl font-semibold text-cyan-200 mt-5 mb-3 pl-3 border-l-4 border-cyan-600" {...props}>
+                      {children}
+                    </h2>
+                  ),
+                  h3: ({ node, children, ...props }: any) => (
+                    <h3 className="text-xl font-semibold text-gray-100 mt-4 mb-1" {...props}>
+                      {children}
+                    </h3>
+                  ),
+                  small: ({ node, children, ...props }: any) => (
+                    <div className="text-sm text-gray-400 mt-1" {...props}>
+                      {children}
+                    </div>
+                  ),
+                  h4: ({ node, ...props }) => <h4 className="text-lg font-medium mt-3 mb-1" {...props} />,
+                  p: ({ node, ...props }) => <p className="leading-7 text-gray-200 mb-2" {...props} />,
+                  a: ({ node, ...props }) => <a className="text-cyan-300 underline" {...props} />,
+                  ul: ({ node, ...props }) => <ul className="list-disc pl-6 space-y-1" {...props} />,
+                  ol: ({ node, ...props }) => <ol className="list-decimal pl-6 space-y-1" {...props} />,
+                  li: ({ node, ...props }) => <li className="mb-1" {...props} />,
+                  blockquote: ({ node, ...props }) => (
+                    <blockquote className="border-l-4 border-gray-600 pl-4 italic text-gray-300 bg-white/2 p-3 rounded-md" {...props} />
+                  ),
+                  hr: () => <hr className="my-6 border-gray-700" />,
+                  img: ({ node, ...props }) => <img className="max-w-full rounded-md" alt={props.alt} {...props} />,
+                  table: ({ node, ...props }) => (
+                    <div className="overflow-auto my-4">
+                      <table className="min-w-full divide-y divide-gray-700 table-auto" {...props} />
+                    </div>
+                  ),
+                  thead: ({ node, ...props }) => <thead className="bg-gray-800 text-gray-100" {...props} />,
+                  tbody: ({ node, ...props }) => <tbody className="bg-transparent divide-y divide-gray-700" {...props} />,
+                  tr: ({ node, ...props }) => <tr {...props} />,
+                  th: ({ node, ...props }) => (
+                    <th className="px-3 py-2 text-left text-sm font-semibold text-gray-200 bg-gray-900" {...props} />
+                  ),
+                  td: ({ node, ...props }) => <td className="px-3 py-2 text-sm text-gray-300" {...props} />,
+                  code: (props: any) => {
+                    const { inline, className, children, ...rest } = props;
+                    if (inline) {
+                      return (
+                        <code className="bg-gray-800 px-1 py-0.5 rounded text-sm" {...rest}>
+                          {children}
+                        </code>
+                      );
+                    }
+
+                    return (
+                      <pre className="bg-gray-900 rounded-lg p-4 overflow-auto text-sm">
+                        <code className={className ?? ""} {...rest}>
+                          {children}
+                        </code>
+                      </pre>
+                    );
+                  },
+                }}
+              >
+                {markdown}
+              </ReactMarkdown>
             </div>
           ) : fileName ? (
             <div>
@@ -183,6 +252,40 @@ export default function Page() {
           )}
         </section>
       </div>
+
+      {/* Fixed download button - appears when markdown is available */}
+      {markdown && (
+        <div className="fixed bottom-6 left-0 right-0 flex justify-center z-50 pointer-events-none">
+          <div className="pointer-events-auto">
+            <button
+              onClick={() => {
+                try {
+                  const nameBase = fileName ? fileName.replace(/\.[^.]+$/, "") : "converted";
+                  const filename = `${nameBase}.md`;
+                  const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = filename;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  URL.revokeObjectURL(url);
+                } catch (err) {
+                  console.error("Download failed", err);
+                }
+              }}
+              aria-label="Download converted markdown file"
+              className="px-5 py-3 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg hover:cursor-pointer"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="inline-block w-5 h-5 mr-2 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0l4-4m-4 4l-4-4M21 21H3" />
+              </svg>
+              <span>Download File</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
