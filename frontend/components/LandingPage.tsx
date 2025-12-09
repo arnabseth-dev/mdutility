@@ -135,7 +135,7 @@ export default function LandingPage() {
             description="Upload or drag and drop your Markdown to generate a structured Word document shaped by your theme file, giving you a clean, branded layout ready to use or share."
             icon={"/file-md-svgrepo-com.svg"}
             accentClass="from-amber-600 to-rose-500"
-            ctaHref="/"
+            ctaHref="/md-to-word"
           />
 
         </section>

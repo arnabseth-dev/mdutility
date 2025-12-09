@@ -105,3 +105,4 @@ temp/
 *.bak
 *.old
 *.orig
+backend/generate_theme.py

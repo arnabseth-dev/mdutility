@@ -3,7 +3,9 @@ fastapi>=0.95.0              # web framework
 uvicorn[standard]>=0.18.0    # ASGI server (use uvicorn to run the app)
 
 # Data validation / models
-pydantic>=2.0.0,<3           # Pydantic v2 (compatible with Python 3.14)
+
+# Validations
+pydantic>=2.0.0,<3           # Pydantic v2
 
 # Optional / common helpers (no DB)
 python-multipart            # file uploads (forms)
@@ -15,6 +17,10 @@ mammoth                    # Word to HTML conversion
 markdownify                # HTML to Markdown conversion
 pdfplumber                 # PDF text extraction
 python-dotenv              # .env file support
+python-docx                # Word document creation
+markdown                   # Markdown to HTML conversion
+beautifulsoup4             # HTML parsing
+
 
 # Dev / testing / linting (optional, helpful)
 pytest                      # tests

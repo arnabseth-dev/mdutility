@@ -117,64 +117,68 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#071833] via-[#0b2a4b] to-[#061b35] text-gray-100 p-6 flex flex-col">
-      <div className="w-full flex-1 flex flex-col">
-        {/* Back navigation to landing page */}
-        <div className="mb-4">
-          <Link href="/" className="inline-flex items-center text-sm text-gray-300 hover:text-white">
+      <div className="max-w-4xl mx-auto w-full flex-1 flex flex-col gap-6">
+
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <Link href="/" className="inline-flex items-center text-sm text-gray-300 hover:text-white transition">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2" viewBox="0 0 20 20" fill="none" stroke="currentColor">
               <path strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7 7-7" />
             </svg>
             Back to Home
           </Link>
+          <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-indigo-400">
+            Word to Markdown Converter
+          </h1>
         </div>
-        {/* Top: Upload / Drop area */}
+
+        {/* Upload / Drop area */}
         <section
           onDrop={onDrop}
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
-          className={`w-full rounded-xl border-2 ${dragging ? "border-cyan-400/60 bg-white/3" : "border-gray-800"} p-6 flex items-center gap-6 transition-colors`}
-          style={{ minHeight: 120 }}
+          className={`relative border-2 border-dashed rounded-xl p-8 transition-all duration-200 flex flex-col items-center justify-center text-center group
+            ${dragging ? "border-cyan-400 bg-cyan-400/10" : "border-gray-700 bg-gray-900/30 hover:border-gray-500"}
+            `}
         >
-          <div className="flex-1">
-            <h2 className="text-lg font-semibold">Upload or drag & drop your Word / PDF</h2>
-            <p className="text-sm text-gray-300 mt-1">
-              Supported: <span className="font-medium">.docx</span>, <span className="font-medium">.pdf</span>.
-              The converted Markdown will appear below.
-            </p>
-            <p className="text-xs text-gray-400 mt-1">Max file size: 3 MB</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".docx,.pdf"
+            onChange={onPickFile}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          />
+          <div className="pointer-events-none">
+            <div className="mx-auto w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+              <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+            </div>
+            <p className="text-lg font-medium text-gray-200">Drag & drop Word/PDF files here</p>
+            <p className="text-sm text-gray-500 mt-1">or click to browse</p>
+            <p className="text-xs text-gray-600 mt-2">Supported: .docx, .pdf (Max 3MB)</p>
           </div>
+        </section>
 
-          <div className="flex items-center gap-3">
-            <input
-              ref={fileInputRef}
-              onChange={onPickFile}
-              accept=".docx,.pdf"
-              type="file"
-              className="hidden"
-            />
-
-            <button
-              onClick={openPicker}
-              className="px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 transition text-sm font-medium"
-            >
-              Choose file
-            </button>
-
+        {/* Action Buttons (Reset) if file selected */}
+        {fileName && (
+          <div className="flex justify-end">
             <button
               onClick={() => {
                 setFileName(null);
                 setMarkdown(null);
                 setError(null);
+                if (fileInputRef.current) fileInputRef.current.value = "";
               }}
-              className="px-3 py-2 rounded-md border border-gray-700 text-sm text-gray-300 hover:bg-white/2 transition"
+              className="text-xs text-red-400 hover:text-red-300"
             >
-              Reset
+              Clear Selection
             </button>
           </div>
-        </section>
+        )}
 
-        {/* Preview / result - full width below */}
-        <section className="mt-8 bg-white/5 border border-white/6 rounded-xl p-6 min-h-[280px] overflow-auto flex-1">
+        {/* Preview / result */}
+        <section className="bg-white/5 border border-white/6 rounded-xl p-6 min-h-[280px] overflow-auto flex-1">
           {loading ? (
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full border-4 border-t-indigo-500 border-gray-700 animate-spin" />
@@ -184,9 +188,6 @@ export default function Page() {
             <div>
               <p className="text-sm text-amber-300 font-medium">Error</p>
               <p className="mt-2 text-sm text-gray-300">{error}</p>
-              <p className="mt-4 text-sm text-gray-400">
-                If you don't yet have a backend route, implement POST /api/convert/word-to-md that returns <code>{`{ markdown: string }`}</code>.
-              </p>
             </div>
           ) : markdown ? (
             <div className="prose prose-invert max-w-none">
@@ -271,6 +272,7 @@ export default function Page() {
             </div>
           )}
         </section>
+
       </div>
 
       {/* Fixed download button - appears when markdown is available */}
