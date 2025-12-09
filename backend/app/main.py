@@ -183,10 +183,10 @@ async def check_update():
 async def execute_update():
     """
     Execute git pull and determine if restart is needed.
+    Also rebuilds frontend if files in frontend/ have changed.
     """
     try:
         # Check for modified files in backend/ or requirements.txt BEFORE pull to see what WILL change.
-        # Actually diffing origin/main against HEAD for specific paths is better.
         # git diff --name-only HEAD origin/main
         diff_result = subprocess.run(
             ["git", "diff", "--name-only", "HEAD", "origin/main"],
@@ -196,9 +196,13 @@ async def execute_update():
         )
         changed_files = diff_result.stdout.splitlines()
         
-        needs_restart = any(
+        needs_backend_restart = any(
             f.startswith("backend/") or f == "requirements.txt" or f.endswith(".py") 
             for f in changed_files
+        )
+        
+        needs_frontend_rebuild = any(
+            f.startswith("frontend/") for f in changed_files
         )
 
         # Pull changes
@@ -208,11 +212,37 @@ async def execute_update():
             capture_output=True,
             text=True
         )
+        
+        rebuild_msg = ""
+        if needs_frontend_rebuild:
+            try:
+                # We assume CWD is 'backend' (as per runapp scripts), so frontend is at '../frontend'
+                frontend_dir = os.path.abspath(os.path.join(os.getcwd(), "..", "frontend"))
+                
+                # npm install
+                subprocess.run(
+                    ["npm", "install"],
+                    cwd=frontend_dir,
+                    check=True,
+                    shell=True  # often needed for npm on windows
+                )
+                
+                # npm run build
+                subprocess.run(
+                    ["npm", "run", "build"],
+                    cwd=frontend_dir,
+                    check=True,
+                    shell=True
+                )
+                rebuild_msg = " Frontend rebuilt successfully."
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Frontend rebuild failed: {e}")
+                rebuild_msg = " Frontend rebuild failed. Check server logs."
 
         return {
             "success": True, 
-            "message": "Update pulled successfully.", 
-            "restart_required": needs_restart,
+            "message": f"Update pulled successfully.{rebuild_msg}", 
+            "restart_required": needs_backend_restart,
             "changed_files": changed_files
         }
 
