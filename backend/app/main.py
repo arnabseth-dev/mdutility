@@ -235,6 +235,54 @@ async def execute_update():
                     shell=True
                 )
                 rebuild_msg = " Frontend rebuilt successfully."
+                
+                # RESTART FRONTEND SERVER (Port 3000)
+                try:
+                    # 1. Find PID on port 3000
+                    # netstat -ano | findstr :3000
+                    # TCP    0.0.0.0:3000           0.0.0.0:0              LISTENING       12345
+                    netstat = subprocess.run(
+                        ["netstat", "-ano"], 
+                        capture_output=True, 
+                        text=True, 
+                        shell=True
+                    )
+                    
+                    pid_to_kill = None
+                    for line in netstat.stdout.splitlines():
+                        if ":3000 " in line and "LISTENING" in line:
+                            parts = line.split()
+                            # Last part is usually PID
+                            pid = parts[-1]
+                            if pid.isdigit() and pid != "0":
+                                pid_to_kill = pid
+                                break
+                    
+                    if pid_to_kill:
+                        logger.info(f"Killing old frontend process PID: {pid_to_kill}")
+                        subprocess.run(
+                            ["taskkill", "/F", "/PID", pid_to_kill],
+                            check=False,
+                            shell=True
+                        )
+                    
+                    # 2. Start new server
+                    logger.info("Starting new frontend server...")
+                    # Use CREATE_NEW_CONSOLE (0x10) to open a new window on Windows
+                    # so the user can see it running, detached from backend.
+                    CREATE_NEW_CONSOLE = 0x10
+                    subprocess.Popen(
+                        ["npm", "start", "--", "-p", "3000"],
+                        cwd=frontend_dir,
+                        shell=True,
+                        creationflags=CREATE_NEW_CONSOLE
+                    )
+                    rebuild_msg += " Frontend server restarted."
+                    
+                except Exception as restart_err:
+                    logger.error(f"Frontend restart failed: {restart_err}")
+                    rebuild_msg += f" Restart failed: {restart_err}"
+
             except subprocess.CalledProcessError as e:
                 logger.error(f"Frontend rebuild failed: {e}")
                 rebuild_msg = " Frontend rebuild failed. Check server logs."
