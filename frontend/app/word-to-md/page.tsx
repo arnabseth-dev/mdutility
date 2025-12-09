@@ -136,7 +136,7 @@ export default function Page() {
           style={{ minHeight: 120 }}
         >
           <div className="flex-1">
-            <h2 className="text-lg font-semibold">Upload or drag & drop your Word / PDF ----------</h2>
+            <h2 className="text-lg font-semibold">Upload or drag & drop your Word / PDF</h2>
             <p className="text-sm text-gray-300 mt-1">
               Supported: <span className="font-medium">.docx</span>, <span className="font-medium">.pdf</span>.
               The converted Markdown will appear below.
