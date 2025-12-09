@@ -111,7 +111,7 @@ export default function LandingPage() {
         {/* HERO — constrained width for readability */}
         <header className="mb-8">
           <h1 className="text-3xl md:text-4xl font-semibold leading-tight tracking-tight max-w-4xl">
-            From Files to Clean Markdown - And Back Again
+            From Files to Clean Markdown - And Back Again -------------------------
           </h1>
 
           <p className="mt-4 text-lg text-gray-300 leading-relaxed max-w-12xl">
