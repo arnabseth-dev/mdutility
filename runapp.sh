@@ -8,7 +8,7 @@ set -e
 # Next.js Default Port is 3000.
 FRONTEND_PORT=3000
 # COMMAND FOR PYTHON BACKEND (Fixed for backend/app/main.py)
-BACKEND_CMD="uvicorn app.main:app"
+BACKEND_CMD="uvicorn app.main:app --reload"
 
 echo "=========================================="
 echo "      STARTING FULL STACK APPLICATION..."

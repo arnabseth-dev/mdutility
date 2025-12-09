@@ -1,9 +1,75 @@
-import React from "react";
+"use client";
+import React, { useEffect, useState } from "react";
 import ConverterCard from "./ConverterCard";
+import UpdateModal from "./UpdateModal";
+
+const API_BASE = "http://localhost:8000";
 
 export default function LandingPage() {
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  useEffect(() => {
+    // Check for updates on mount
+    const checkUpdate = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/update/check`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.update_available) {
+            setShowUpdateModal(true);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to check for updates", error);
+      }
+    };
+
+    // Check if we just restored from an update
+    const restored = localStorage.getItem("mdutility_restore_state");
+    if (restored) {
+      console.log("State restored after update");
+      // Clear flag
+      localStorage.removeItem("mdutility_restore_state");
+      // Here you would rehydrate form state if we had any substantial form state to save
+    }
+
+    checkUpdate();
+  }, []);
+
+  const handleUpdate = async () => {
+    setIsUpdating(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/update/execute`, { method: "POST" });
+      const data = await res.json();
+
+      if (data.success) {
+        // Save state flag before reload
+        localStorage.setItem("mdutility_restore_state", "true");
+
+        // Reload page to pick up changes (backend restart might handle itself or just reload logic)
+        // If backend actually restarts the service, the next fetch might fail briefly, but reload is safest.
+        window.location.reload();
+      } else {
+        alert("Update failed: " + data.message);
+        setIsUpdating(false);
+      }
+    } catch (error) {
+      console.error("Update execution error", error);
+      alert("Update execution failed. Check console.");
+      setIsUpdating(false);
+    }
+  };
+
   return (
     <main className="min-h-screen relative bg-gradient-to-b from-[#071833] via-[#0b2a4b] to-[#061b35] text-gray-100 flex justify-center py-16 px-4">
+      <UpdateModal
+        isOpen={showUpdateModal}
+        onUpdate={handleUpdate}
+        onClose={() => setShowUpdateModal(false)}
+        isLoading={isUpdating}
+      />
+
       {/* Animated background: rotating conic + two blurred color blobs (clipped) */}
       <div aria-hidden="true" className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
         {/* rotating conic, stronger opacity so it's visible */}

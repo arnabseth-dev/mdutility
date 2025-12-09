@@ -7,7 +7,7 @@ SETLOCAL EnableDelayedExpansion
 :: Next.js Default Port is 3000.
 set FRONTEND_PORT=3000
 :: COMMAND FOR PYTHON BACKEND (Fixed for backend/app/main.py)
-set BACKEND_CMD=uvicorn app.main:app
+set BACKEND_CMD=uvicorn app.main:app --reload
 :: This variable is no longer strictly used, but kept for clarity
 set BUILD_FOLDER=build
 
