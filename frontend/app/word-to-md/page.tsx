@@ -189,7 +189,7 @@ export default function Page() {
               </p>
             </div>
           ) : markdown ? (
-            <div className="prose prose-invert max-w-none markdown-numbered">
+            <div className="prose prose-invert max-w-none">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw, rehypeHighlight]}
@@ -200,7 +200,7 @@ export default function Page() {
                     </h1>
                   ),
                   h2: ({ node, children, ...props }: any) => (
-                    <h2 className="numbered-h2 text-3xl md:text-4xl font-semibold text-cyan-200 mt-5 mb-3 pl-3 border-l-4 border-cyan-600" {...props}>
+                    <h2 className="text-3xl md:text-4xl font-semibold text-cyan-200 mt-5 mb-3 pl-3 border-l-4 border-cyan-600" {...props}>
                       {children}
                     </h2>
                   ),
