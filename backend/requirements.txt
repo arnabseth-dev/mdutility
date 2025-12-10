@@ -28,3 +28,4 @@ httpx[cli]                  # for integration tests / quick HTTP checks
 black                       # code formatter
 flake8                      # linting
 mypy                        # static types (optional)
+docxcompose                 # combining docx files

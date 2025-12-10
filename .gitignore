@@ -106,3 +106,7 @@ temp/
 *.old
 *.orig
 backend/generate_theme.py
+backend/verify_conversion.py
+backend/debug_output.docx
+backend/debug_renderer.py
+backend/test.md

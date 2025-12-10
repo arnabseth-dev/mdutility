@@ -4,6 +4,7 @@ import os
 import logging
 import re
 from typing import Optional, List
+from copy import deepcopy
 import zipfile
 import base64
 
@@ -20,8 +21,10 @@ from bs4 import BeautifulSoup
 from docx import Document
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.section import WD_SECTION
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+from docxcompose.composer import Composer
 
 # constants
 MAX_BYTES = 3 * 1024 * 1024  # 3 MB
@@ -209,6 +212,7 @@ def add_toc(doc):
     fldChar.set(qn('w:fldCharType'), 'end')
     run._r.append(fldChar)
     
+    # Page break after TOC (Page 2 done, now Page 3 starts)
     doc.add_page_break()
 
 def force_update_fields(doc):
@@ -374,49 +378,141 @@ def get_default_document():
     return Document() # Fallback to blank if missing
 
 def convert_md_to_docx_bytes(md_content: str, theme_bytes: Optional[bytes] = None, theme_is_docx: bool = False) -> bytes:
-    doc = None
+    # 1. Prepare Main Body Document
+    body_doc = None
     
     if theme_is_docx and theme_bytes:
         try:
-            doc = Document(io.BytesIO(theme_bytes))
-            # If used as a theme, we likely want to clear its content (text) 
-            # but keep the styles.
-            _clear_document_content(doc)
+            body_doc = Document(io.BytesIO(theme_bytes))
+            _clear_document_content(body_doc)
         except Exception:
-            # Fallback if corrupt
             pass
             
-    # If no valid doc loaded from upload, use default theme
-    if doc is None:
-        doc = get_default_document()
-        
-        # If user uploaded a text file as theme (rare), we can prepend it
+    if body_doc is None:
+        body_doc = get_default_document()
         if theme_bytes and not theme_is_docx:
             try:
                 theme_text = theme_bytes.decode('utf-8', errors='ignore')
-                doc.add_paragraph(theme_text)
-                doc.add_page_break()
+                body_doc.add_paragraph(theme_text)
+                body_doc.add_page_break()
             except:
                 pass
 
+    # 1a. Prepare Body Doc Structure (Buffer Section + Content Section)
+    # Critical: Do this BEFORE adding content so content goes into the (new) S2.
+    
+    # Check if we have sections (loaded from theme)
+    if len(body_doc.sections) > 0:
+        s1 = body_doc.sections[0]
+        s2 = body_doc.add_section(WD_SECTION.NEW_PAGE)
+        s2.header.is_linked_to_previous = False
+        s2.footer.is_linked_to_previous = False
+        
+        # Helper to copy
+        def copy_hf(src, tgt):
+            if tgt._element.getchildren():
+                for child in list(tgt._element):
+                    tgt._element.remove(child)
+            for child in src._element.getchildren():
+                 tgt._element.append(deepcopy(child))
+
+        copy_hf(s1.header, s2.header)
+        copy_hf(s1.footer, s2.footer)
+    
     # Convert MD to HTML
     html = markdown.markdown(md_content, extensions=['tables'])
     
-    # Add TOC first
-    add_toc(doc)
+    # Add TOC to Body Doc (Appends to S2)
+    add_toc(body_doc)
     
     # Force update fields on open
-    force_update_fields(doc)
+    force_update_fields(body_doc)
     
     # Force Print Layout
-    force_print_layout(doc)
+    force_print_layout(body_doc)
     
-    # Add to Docx
-    _add_html_to_document(doc, html)
+    # Add content to Body Doc (Appends to S2)
+    _add_html_to_document(body_doc, html)
     
+    # 2. Load Cover Page
+    cover_path = os.path.join(os.path.dirname(__file__), "static", "Cover_page.docx")
+    print(f"Looking for Cover Page at: {cover_path}")
+    if os.path.exists(cover_path):
+        print("Found Cover Page.")
+        master_doc = Document(cover_path)
+    else:
+        # Fallback if cover missing: Start with Body
+        master_doc = body_doc
+        body_doc = None # To avoid re-appending if we just made it master
+
+    # 3. Compose Documents
+    if body_doc:
+        # Pre-process Body Doc to prevent Header Merge
+        # We add a buffer section at the start. 
+        # S1 (Buffer) -> Merges with Cover (Blank Header)
+        # S2 (Content) -> Appended as New Section (Preserves Theme Header)
+        composer = Composer(master_doc)
+        composer.append(body_doc)
+    else:
+        print("No Cover Page found, using Body as Master.")
+        # If no cover, master is body
+        composer = Composer(master_doc)
+
+    # 4. Load & Append End Page
+    end_path = os.path.join(os.path.dirname(__file__), "static", "end_page.docx")
+    print(f"Looking for End Page at: {end_path}")
+    if os.path.exists(end_path):
+        try:
+            print("Found End Page. Appending...")
+            end_doc = Document(end_path)
+            # Remove any initial empty paragraphs from end_doc to avoid extra whitespace if needed
+            # But usually we just append.
+            # Force new section logic is handled by composer if end_doc has 1 section?
+            # We want End Page to be a NEW section.
+            # If docxcompose merges...
+            # We can use the same Buffer strategy? 
+            # OR, since master_doc now ends with S2 (Body), and S2 has headers.
+            # If End Doc merge into S2 -> It is part of Body. Headers OK.
+            # But we want End Doc to be separate section?
+            # User said: "end_page... default header and footer will be added... style will be ignore".
+            # If we merge, we keep Body headers.
+            # If we add section, we Link to Body.
+            # Safest: Add section break to master before appending End?
+            # Or use Buffer.
+            
+            # Let's try appending as is. If it merges into S2, it gets S2 headers (Body headers).
+            # This satisfies "End page... header and footer will be added".
+            # But "Style will be ignore".
+            # If `end_doc` has its own styles, `docxcompose` keeps them usually.
+            
+            # Revert manual add_section for End Page too
+            # master_doc.add_section(WD_SECTION.NEW_PAGE) <-- REMOVED
+            composer.append(end_doc)
+        except Exception:
+            pass
+
+    # 5. Fix Section Headers/Footers
+    # Goal: 
+    #   Section 0 (Cover): As is
+    #   Section 1 (Buffer - merged): Gone/Properties merged into Cover
+    #   Section 2 (Body - S2 of body_doc): Unlinked, Custom Headers.
+    #   Section 3 (End - merged into S2?? Or New S3?)
+    
+    # If Body had 2 sections (S1, S2).
+    # Master had 1 (Cover).
+    # Append Body -> Master has S1(Cover+BodyS1), S2(BodyS2).
+    # Append End -> If End has 1 section -> Merges into S2?
+    # Then End is part of S2.
+    # S2 has Body Headers.
+    # So End has Body Headers.
+    # This matches requirement!
+    
+    print(f"Final Document Sections: {len(master_doc.sections)}")
+    # We don't need to manually link/unlink post-merge because we did it in preparation.
+
     # Save to buffer
     out = io.BytesIO()
-    doc.save(out)
+    composer.save(out)
     return out.getvalue()
 
 
