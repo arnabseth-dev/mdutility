@@ -574,32 +574,49 @@ async def convert_md_to_word(
     })
 
 
-# --- Git Auto-Update Endpoints ---
+# --- Git-less Auto-Update Endpoints (Zip Download) ---
 import subprocess
+import httpx
+import shutil
+import tempfile
+import json
+
+VERSION_FILE = os.path.join(os.path.dirname(__file__), "version.json")
 
 @app.get("/api/update/check")
 async def check_update():
     """
-    Checks if the local repo is behind origin/main.
+    Checks if the local version (sha) differs from GitHub main.
     """
     try:
-        # Fetch latest changes without applying
-        subprocess.run(["git", "fetch", "origin"], check=True, capture_output=True)
+        # Fetch remote SHA
+        url = "https://api.github.com/repos/arnabseth-dev/mdutility/commits/main"
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            remote_data = resp.json()
+            remote_sha = remote_data["sha"]
         
-        # Check commits behind
-        # git rev-list --count HEAD..origin/main
-        result = subprocess.run(
-            ["git", "rev-list", "--count", "HEAD..origin/main"],
-            check=True,
-            capture_output=True,
-            text=True
-        )
-        count = int(result.stdout.strip())
+        # Get local SHA
+        local_sha = ""
+        if os.path.exists(VERSION_FILE):
+            try:
+                with open(VERSION_FILE, "r") as f:
+                    data = json.load(f)
+                    local_sha = data.get("sha", "")
+            except:
+                pass # corrupted file, treat as empty
+
+        # If local_sha is empty, we act as if we are on an unknown version.
+        # But if we just installed, we might not have the file.
+        # Let's say update is available if they differ.
+        update_available = (local_sha != remote_sha)
         
-        return {"update_available": count > 0, "commits_behind": count}
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Git check failed: {e}")
-        return JSONResponse({"update_available": False, "error": "Git check failed"}, status_code=500)
+        return {
+            "update_available": update_available, 
+            "local_sha": local_sha, 
+            "remote_sha": remote_sha
+        }
     except Exception as e:
         logger.exception("Update check error")
         return JSONResponse({"update_available": False, "error": str(e)}, status_code=500)
@@ -608,139 +625,177 @@ async def check_update():
 @app.post("/api/update/execute")
 async def execute_update():
     """
-    Execute git pull and determine if restart is needed.
-    Also rebuilds frontend if files in frontend/ have changed.
+    Download zip from GitHub, extract, and overwrite local files.
+    Then run install scripts and trigger restart.
     """
     try:
-        # Check for modified files in backend/ or requirements.txt BEFORE pull to see what WILL change.
-        # git diff --name-only HEAD origin/main
-        diff_result = subprocess.run(
-            ["git", "diff", "--name-only", "HEAD", "origin/main"],
-            check=True,
-            capture_output=True,
-            text=True
-        )
-        changed_files = diff_result.stdout.splitlines()
+        # 1. Download Zip
+        zip_url = "https://github.com/arnabseth-dev/mdutility/archive/refs/heads/main.zip"
+        logger.info(f"Downloading update from {zip_url}...")
         
-        needs_backend_restart = any(
-            f.startswith("backend/") or f == "requirements.txt" or f.endswith(".py") 
-            for f in changed_files
-        )
-        
-        needs_frontend_rebuild = any(
-            f.startswith("frontend/") for f in changed_files
-        )
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(zip_url, follow_redirects=True)
+            resp.raise_for_status()
+            zip_content = resp.content
+            
+        # 2. Extract and Overwrite
+        with tempfile.TemporaryDirectory() as temp_dir:
+            zip_path = os.path.join(temp_dir, "update.zip")
+            with open(zip_path, "wb") as f:
+                f.write(zip_content)
+                
+            logger.info("Extracting update...")
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+            
+            # GitHub zips usually have a root folder like 'mdutility-main'
+            extract_root = os.path.join(temp_dir, "mdutility-main")
+            if not os.path.exists(extract_root):
+                # Fallback: find the single directory inside temp_dir
+                items = os.listdir(temp_dir)
+                items = [i for i in items if os.path.isdir(os.path.join(temp_dir, i))]
+                if len(items) == 1:
+                    extract_root = os.path.join(temp_dir, items[0])
+                else:
+                    raise Exception("Unexpected zip structure: could not find root folder")
 
-        # Pull changes
-        pull_result = subprocess.run(
-            ["git", "pull", "origin", "main"],
-            check=True,
-            capture_output=True,
-            text=True
-        )
+            # Paths
+            # Current working directory is likely 'backend/' (where main.py runs)
+            # But let's be safe. We want to identify the project root.
+            # We assume __file__ is backend/app/main.py
+            # So backend root is backend/
+            # Project root is ../
+            
+            backend_app_dir = os.path.dirname(__file__) # backend/app
+            backend_dir = os.path.abspath(os.path.join(backend_app_dir, "..")) # backend
+            project_dir = os.path.abspath(os.path.join(backend_dir, "..")) # project root
+            
+            new_backend = os.path.join(extract_root, "backend")
+            new_frontend = os.path.join(extract_root, "frontend")
+            
+            # --- Detect Changes for Dependencies ---
+            has_requirements_change = False
+            has_package_json_change = False
+            
+            def file_content(path):
+                if os.path.exists(path):
+                    with open(path, "rb") as f: return f.read()
+                return None
 
-        # Pip Install if needed
-        if any(f == "requirements.txt" or f.endswith("requirements.txt") for f in changed_files):
+            # Check requirements.txt (in backend/)
+            old_req = file_content(os.path.join(backend_dir, "requirements.txt"))
+            new_req = file_content(os.path.join(new_backend, "requirements.txt"))
+            if old_req != new_req:
+                has_requirements_change = True
+            
+            # Check package.json (in frontend/)
+            frontend_dir = os.path.join(project_dir, "frontend")
+            old_pkg = file_content(os.path.join(frontend_dir, "package.json"))
+            new_pkg = file_content(os.path.join(new_frontend, "package.json"))
+            if old_pkg != new_pkg:
+                has_package_json_change = True
+            
+            # --- Perform Overwrite ---
+            logger.info("Overwriting files...")
+            
+            # Function to recursively copy and overwrite
+            def recursive_overwrite(src, dest):
+                if not os.path.exists(dest):
+                    os.makedirs(dest)
+                for item in os.listdir(src):
+                    s = os.path.join(src, item)
+                    d = os.path.join(dest, item)
+                    if os.path.isdir(s):
+                        recursive_overwrite(s, d)
+                    else:
+                        shutil.copy2(s, d)
+
+            # Overwrite Backend
+            if os.path.exists(new_backend):
+                recursive_overwrite(new_backend, backend_dir)
+            
+            # Overwrite Frontend
+            if os.path.exists(new_frontend):
+                recursive_overwrite(new_frontend, frontend_dir)
+                
+            # --- Update version.json ---
             try:
-                logger.info("requirements.txt changed. Running pip install...")
-                # Assuming venv is active or available in path
+                sha_url = "https://api.github.com/repos/arnabseth-dev/mdutility/commits/main"
+                async with httpx.AsyncClient() as client:
+                    r = await client.get(sha_url)
+                    if r.status_code == 200:
+                        current_sha = r.json()["sha"]
+                        with open(VERSION_FILE, "w") as f:
+                            json.dump({"sha": current_sha}, f)
+            except:
+                logger.warning("Failed to update version.json after download")
+
+        # 3. Post-Update Actions (Installs & Rebuilds)
+        install_logs = []
+        needs_restart = True # Assume code changed, so restart backend
+        
+        if has_requirements_change:
+            logger.info("requirements.txt changed. Running pip install...")
+            try:
                 subprocess.run(
                     ["pip", "install", "-r", "requirements.txt"],
-                    check=True,
-                    capture_output=True,
-                    text=True
+                    cwd=backend_dir, # Run in backend dir
+                    check=True, capture_output=True, text=True
                 )
+                install_logs.append("Pip install success")
             except subprocess.CalledProcessError as e:
                 logger.error(f"Pip install failed: {e.stderr}")
-                # We don't abort, just log, as restart is pending anyway
-        
+                install_logs.append(f"Pip install failed: {e.stderr}")
+
         rebuild_msg = ""
-        if needs_frontend_rebuild:
+        if has_package_json_change:
+            logger.info("package.json changed. Running npm install & build...")
             try:
-                # We assume CWD is 'backend' (as per runapp scripts), so frontend is at '../frontend'
-                frontend_dir = os.path.abspath(os.path.join(os.getcwd(), "..", "frontend"))
-                
                 # npm install
-                subprocess.run(
-                    ["npm", "install"],
-                    cwd=frontend_dir,
-                    check=True,
-                    shell=True  # often needed for npm on windows
-                )
+                npm_cmd = "npm.cmd" if os.name == "nt" else "npm"
+                subprocess.run([npm_cmd, "install"], cwd=frontend_dir, check=True, shell=True)
                 
                 # npm run build
-                subprocess.run(
-                    ["npm", "run", "build"],
-                    cwd=frontend_dir,
-                    check=True,
-                    shell=True
-                )
-                rebuild_msg = " Frontend rebuilt successfully."
+                subprocess.run([npm_cmd, "run", "build"], cwd=frontend_dir, check=True, shell=True)
+                rebuild_msg = " Frontend rebuilt."
                 
-                # RESTART FRONTEND SERVER (Port 3000)
+                # Restart Frontend Server (Kill 3000)
                 try:
-                    # 1. Find PID on port 3000
-                    # netstat -ano | findstr :3000
-                    # TCP    0.0.0.0:3000           0.0.0.0:0              LISTENING       12345
-                    netstat = subprocess.run(
-                        ["netstat", "-ano"], 
-                        capture_output=True, 
-                        text=True, 
-                        shell=True
-                    )
-                    
+                    # Find PID on 3000
+                    netstat = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, shell=True)
                     pid_to_kill = None
                     for line in netstat.stdout.splitlines():
                         if ":3000 " in line and "LISTENING" in line:
-                            parts = line.split()
-                            # Last part is usually PID
-                            pid = parts[-1]
-                            if pid.isdigit() and pid != "0":
-                                pid_to_kill = pid
-                                break
+                            pid_to_kill = line.split()[-1]
+                            break
                     
-                    if pid_to_kill:
-                        logger.info(f"Killing old frontend process PID: {pid_to_kill}")
-                        subprocess.run(
-                            ["taskkill", "/F", "/PID", pid_to_kill],
-                            check=False,
-                            shell=True
-                        )
+                    if pid_to_kill and pid_to_kill.isdigit() and pid_to_kill != "0":
+                         subprocess.run(["taskkill", "/F", "/PID", pid_to_kill], shell=True)
                     
-                    # 2. Start new server
-                    logger.info("Starting new frontend server...")
-                    # Use CREATE_NEW_CONSOLE (0x10) to open a new window on Windows
-                    # so the user can see it running, detached from backend.
+                    # Start new
                     CREATE_NEW_CONSOLE = 0x10
                     subprocess.Popen(
-                        ["npm", "start", "--", "-p", "3000"],
+                        [npm_cmd, "start", "--", "-p", "3000"],
                         cwd=frontend_dir,
                         shell=True,
                         creationflags=CREATE_NEW_CONSOLE
                     )
                     rebuild_msg += " Frontend server restarted."
-                    
-                except Exception as restart_err:
-                    logger.error(f"Frontend restart failed: {restart_err}")
-                    rebuild_msg += f" Restart failed: {restart_err}"
+                except Exception as e:
+                    rebuild_msg += f" Frontend restart issue: {e}"
 
+                install_logs.append("NPM update success")
             except subprocess.CalledProcessError as e:
-                logger.error(f"Frontend rebuild failed: {e}")
-                rebuild_msg = " Frontend rebuild failed. Check server logs."
+                logger.error(f"NPM update failed: {e}")
+                install_logs.append(f"NPM update failed: {e}")
 
         return {
             "success": True, 
-            "message": f"Update pulled successfully.{rebuild_msg}", 
-            "restart_required": needs_backend_restart,
-            "changed_files": changed_files
+            "message": "Update downloaded and applied. " + "; ".join(install_logs) + rebuild_msg, 
+            "restart_required": needs_restart,
+            "changed_files": ["(Overwritten from Zip)"]
         }
 
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Git pull failed: {e.stderr}")
-        return JSONResponse(
-            {"success": False, "message": "Git pull failed. Local changes might be conflicting.", "error": str(e.stderr)}, 
-            status_code=500
-        )
     except Exception as e:
         logger.exception("Update execution error")
         return JSONResponse({"success": False, "message": str(e)}, status_code=500)
